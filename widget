@@ -1,0 +1,201 @@
+// Configuration
+const hassUrl = "https://your-home-assistant-url";
+const hassToken = "your-long-lived-access-token";
+
+const backgroundColor = new Color("#000000");
+const textColor = new Color("#FFFFFF");
+const grayTextColor = new Color("#808080");
+const solarIconColor = new Color("#FFD700");
+const gainIconColor = new Color("#00FF00");
+const networkIconColor = new Color("#FF0000");
+const houseIconColor = new Color("#dec9a5");
+const titleFontSize = 20;
+const valueFontSize = 24;
+const labelFontSize = 12;
+const updateFontSize = 10;
+const smallFontSize = 14;
+
+const widget = new ListWidget();
+widget.backgroundColor = backgroundColor;
+
+const states = await fetchAllStates();
+
+const topStack = widget.addStack();
+topStack.layoutHorizontally();
+
+const titlePadding = topStack.addStack();
+titlePadding.layoutVertically();
+titlePadding.addSpacer(30);
+
+const titleText = titlePadding.addText("My Home");
+titleText.font = Font.boldSystemFont(titleFontSize);
+titleText.textColor = textColor;
+
+titlePadding.addSpacer(10);
+
+const infoStack = titlePadding.addStack();
+infoStack.layoutVertically();
+
+const energySoutirStack = infoStack.addStack();
+energySoutirStack.layoutHorizontally();
+const houseIcon = SFSymbol.named("house.fill").image;
+const houseIconElement = energySoutirStack.addImage(houseIcon);
+houseIconElement.imageSize = new Size(14, 14);
+houseIconElement.tintColor = houseIconColor;
+energySoutirStack.addSpacer(5);
+
+const energySoutirText = energySoutirStack.addText(getFormattedValue("sensor.energie_soutir_quotidienne", "kWh"));
+energySoutirText.font = Font.systemFont(labelFontSize);
+energySoutirText.textColor = grayTextColor;
+
+const energyInjStack = infoStack.addStack();
+energyInjStack.layoutHorizontally();
+const moneyIcon = SFSymbol.named("banknote.fill").image;
+const moneyIconElement = energyInjStack.addImage(moneyIcon);
+moneyIconElement.imageSize = new Size(14, 14);
+moneyIconElement.tintColor = houseIconColor;
+energyInjStack.addSpacer(5);
+
+const energyInjText = energyInjStack.addText(getFormattedValue("sensor.energie_inj_quotidienne", "kWh"));
+energyInjText.font = Font.systemFont(labelFontSize);
+energyInjText.textColor = grayTextColor;
+
+topStack.addSpacer();
+
+const imageUrl = "https://your-image-url";
+const req = new Request(imageUrl);
+const image = await req.loadImage();
+const houseImage = topStack.addImage(image);
+houseImage.imageSize = new Size(200, 110);
+houseImage.applyFittingContentMode();
+
+widget.addSpacer();
+
+const bottomStack = widget.addStack();
+bottomStack.layoutHorizontally();
+
+const solarStack = bottomStack.addStack();
+solarStack.layoutHorizontally();
+
+const solarIcon = SFSymbol.named("sun.max.fill").image;
+const solarIconElement = solarStack.addImage(solarIcon);
+solarIconElement.imageSize = new Size(30, 30);
+solarIconElement.tintColor = solarIconColor;
+solarStack.addSpacer(5);
+
+const solarValueStack = solarStack.addStack();
+solarValueStack.layoutVertically();
+
+const solarValue = solarValueStack.addText(getFormattedValueInKW("sensor.ecu_current_power", "kW"));
+solarValue.font = Font.boldSystemFont(valueFontSize);
+solarValue.textColor = textColor;
+
+const solarLabel = solarValueStack.addText("Solar Production");
+solarLabel.font = Font.systemFont(labelFontSize);
+solarLabel.textColor = grayTextColor;
+
+const solarUpdate = solarValueStack.addText(getLastUpdate("sensor.ecu_current_power"));
+solarUpdate.font = Font.systemFont(updateFontSize);
+solarUpdate.textColor = grayTextColor;
+
+solarStack.centerAlignContent();
+
+bottomStack.addSpacer();
+
+const homeStack = bottomStack.addStack();
+homeStack.layoutHorizontally();
+
+const injectValue = parseFloat(getSensorValue("sensor.linky_linky_puissance_apparente_instantan_e_inject_e")) / 1000;
+const soutireValue = parseFloat(getSensorValue("sensor.linky_linky_puissance_apparente_instantan_e_soutir_e")) / 1000;
+let homeIcon;
+let homeValueText;
+let homeIconElementTintColor;
+
+if (soutireValue > 0) {
+  homeIcon = SFSymbol.named("house.fill").image;
+  homeValueText = `${soutireValue.toFixed(1)} kW`;
+  homeIconElementTintColor = networkIconColor;
+} else if (injectValue > 0) {
+  homeIcon = SFSymbol.named("bolt.horizontal").image;
+  homeValueText = `${injectValue.toFixed(1)} kW`;
+  homeIconElementTintColor = gainIconColor;
+} else {
+  homeIcon = SFSymbol.named("house.fill").image;
+  homeValueText = "0 kW";
+  homeIconElementTintColor = houseIconColor;
+}
+
+const homeIconElement = homeStack.addImage(homeIcon);
+homeIconElement.imageSize = new Size(30, 30);
+homeIconElement.tintColor = homeIconElementTintColor;
+homeStack.addSpacer(5);
+
+const homeValueStack = homeStack.addStack();
+homeValueStack.layoutVertically();
+
+const homeValue = homeValueStack.addText(homeValueText);
+homeValue.font = Font.boldSystemFont(valueFontSize);
+homeValue.textColor = textColor;
+
+const homeLabel = homeValueStack.addText("Current Home Usage");
+homeLabel.font = Font.systemFont(labelFontSize);
+homeLabel.textColor = grayTextColor;
+
+const homeUpdate = homeValueStack.addText(getLastUpdate("sensor.linky_linky_puissance_apparente_instantan_e_inject_e"));
+homeUpdate.font = Font.systemFont(updateFontSize);
+homeUpdate.textColor = grayTextColor;
+
+homeStack.centerAlignContent();
+
+widget.addSpacer(20);
+
+Script.setWidget(widget);
+Script.complete();
+widget.presentMedium();
+
+function getFormattedValue(entityId, unit) {
+  const sensor = getState(states, entityId);
+  if (sensor) {
+    const value = (parseFloat(sensor.state)).toFixed(1);
+    return `${value} ${unit}`;
+  }
+  return "N/A";
+}
+
+function getFormattedValueInKW(entityId, unit) {
+  const sensor = getState(states, entityId);
+  if (sensor) {
+    const value = (parseFloat(sensor.state) / 1000).toFixed(1);
+    return `${value} ${unit}`;
+  }
+  return "N/A";
+}
+
+function getLastUpdate(entityId) {
+  const sensor = getState(states, entityId);
+  if (sensor && sensor.last_updated) {
+    const updateDate = new Date(sensor.last_updated);
+    const now = new Date();
+    const diffSeconds = Math.floor((now - updateDate) / 1000);
+    return `${diffSeconds} sec ago`;
+  }
+  return "N/A";
+}
+
+async function fetchAllStates() {
+  let req = new Request(`${hassUrl}/api/states`);
+  req.headers = {
+    "Authorization": `Bearer ${hassToken}`,
+    "content-type": "application/json"
+  };
+  return await req.loadJSON();
+}
+
+function getState(states, entityId) {
+  return states.filter(state => state.entity_id === entityId)[0];
+}
+
+function getSensorValue(entityId) {
+  const sensor = getState(states, entityId);
+  return sensor ? sensor.state : "0";
+}
